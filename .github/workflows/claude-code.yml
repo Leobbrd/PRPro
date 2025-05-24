@@ -1,7 +1,7 @@
 name: Claude PR Creation
 on:
   issue_comment:
-    types: [created]  # Triggers when someone comments on an issue or PR
+    types: [created]
 
 jobs:
   create-pr:
@@ -11,19 +11,5 @@ jobs:
       - uses: anthropics/claude-code-action@beta
         with:
           prompt: "${{ github.event.comment.body }}"
-          allowed_tools:
-            - "Bash(git status)"
-            - "Bash(git log)"
-            - "Bash(git show)"
-            - "Bash(git blame)"
-            - "Bash(git reflog)"
-            - "Bash(git stash list)"
-            - "Bash(git ls-files)"
-            - "Bash(git branch)"
-            - "Bash(git tag)"
-            - "Bash(git diff)"
-            - "View"
-            - "GlobTool"
-            - "GrepTool"
-            - "BatchTool"
+          allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
