@@ -6,16 +6,20 @@ on:
 
 permissions:
   id-token: write
-  contents: write
+  contents: write         # ← ブランチ作成などに必要
   pull-requests: write
-  issues: write  # ← コメント投稿のために必要
+  issues: write
 
 jobs:
   create-pr:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     steps:
-      - uses: anthropics/claude-code-action@beta
+      - name: Checkout repo
+        uses: actions/checkout@v4   # ← これが必須！
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@beta
         with:
           direct_prompt: "${{ github.event.comment.body }}"
           allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
