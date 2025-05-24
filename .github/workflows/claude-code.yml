@@ -1,4 +1,5 @@
 name: Claude PR Creation
+
 on:
   issue_comment:
     types: [created]
@@ -6,7 +7,8 @@ on:
 permissions:
   id-token: write
   contents: read
-  pull-requests: write  # PR 作成のために必要
+  pull-requests: write
+  issues: write  # ← コメント投稿のために必要
 
 jobs:
   create-pr:
@@ -18,4 +20,4 @@ jobs:
           direct_prompt: "${{ github.event.comment.body }}"
           allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # 自動的に設定される特殊なトークン
+          github_token: ${{ secrets.GITHUB_TOKEN }}
