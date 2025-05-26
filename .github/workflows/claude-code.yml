@@ -1,23 +1,38 @@
 name: Claude PR Creation
-
 on:
   issue_comment:
     types: [created]
-
 permissions:
   id-token: write
-  contents: write         # ← ブランチ作成などに必要
+  contents: write
   pull-requests: write
   issues: write
-
 jobs:
   create-pr:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4   # ← これが必須！
-
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up branch name
+        id: branch-name
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+          BRANCH_NAME="${CLEAN_TITLE}_${ISSUE_NUMBER}"
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Create and checkout branch
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git checkout -b ${{ steps.branch-name.outputs.branch_name }}
+      
       - name: Run Claude
         uses: anthropics/claude-code-action@beta
         with:
@@ -25,3 +40,21 @@ jobs:
           allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Push branch and create PR
+        run: |
+          # 変更があるかチェック
+          if [[ -n $(git status --porcelain) ]] || [[ $(git rev-list --count HEAD ^origin/main) -gt 0 ]]; then
+            git push origin ${{ steps.branch-name.outputs.branch_name }}
+            
+            # PRを作成
+            gh pr create \
+              --title "Fix: ${{ github.event.issue.title }}" \
+              --body "Fixes #${{ github.event.issue.number }}" \
+              --head ${{ steps.branch-name.outputs.branch_name }} \
+              --base main
+          else
+            echo "No changes to commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
