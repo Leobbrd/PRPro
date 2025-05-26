@@ -123,7 +123,7 @@ async function main() {
     data: [
       {
         projectId: demoProject.id,
-        uploadedBy: admin.id,
+        uploadedById: admin.id,
         originalName: 'プレスリリース_新商品発表.pdf',
         filePath: '/uploads/press-release-2024.pdf',
         fileSize: 1024000,
@@ -133,7 +133,7 @@ async function main() {
       },
       {
         projectId: demoProject.id,
-        uploadedBy: admin.id,
+        uploadedById: admin.id,
         originalName: '商品画像_メイン.jpg',
         filePath: '/uploads/product-main-image.jpg',
         fileSize: 512000,
@@ -143,7 +143,7 @@ async function main() {
       },
       {
         projectId: demoProject.id,
-        uploadedBy: demoUser.id,
+        uploadedById: demoUser.id,
         originalName: 'インタビュー企画書.docx',
         filePath: '/uploads/interview-proposal.docx',
         fileSize: 256000,
