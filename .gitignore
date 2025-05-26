@@ -55,4 +55,4 @@ temp/
 *.swo
 
 # OS
-Thumbs.db
+Thumbs.db.env
