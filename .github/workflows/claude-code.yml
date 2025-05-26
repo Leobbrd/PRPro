@@ -5,7 +5,6 @@ on:
     types: [created]
 
 permissions:
-  id-token: write
   contents: write
   pull-requests: write
   issues: write
@@ -16,126 +15,31 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
 
       - name: Configure Git
         run: |
-          git config --local user.email "claude-bot@anthropic.com"
-          git config --local user.name "Claude Bot"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
 
-      - name: Run Claude Code Action
+      - name: Run Claude
         uses: anthropics/claude-code-action@beta
         with:
           direct_prompt: "${{ github.event.comment.body }}"
-          allowed_tools: |
-            [
-              "Bash(git status)",
-              "Bash(git log)",
-              "Bash(git show)",
-              "Bash(git blame)",
-              "Bash(git reflog)",
-              "Bash(git stash list)",
-              "Bash(git ls-files)",
-              "Bash(git branch)",
-              "Bash(git tag)",
-              "Bash(git diff)",
-              "View",
-              "GlobTool", 
-              "GrepTool",
-              "BatchTool",
-              "EditTool",
-              "CreateTool"
-            ]
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for changes
-        id: check-changes
+      - name: Create PR if changes exist
         run: |
           if [[ -n $(git status --porcelain) ]]; then
-            echo "changes_detected=true" >> $GITHUB_OUTPUT
-            echo "Changes detected:"
-            git status --short
-          else
-            echo "changes_detected=false" >> $GITHUB_OUTPUT
-            echo "No changes detected"
-          fi
-
-      - name: Create Pull Request
-        if: steps.check-changes.outputs.changes_detected == 'true'
-        run: |
-          # ブランチ名を自動生成（Claude Code Actionが作成）
-          CURRENT_BRANCH=$(git branch --show-current)
-          echo "Current branch: $CURRENT_BRANCH"
-          
-          # mainブランチでない場合のみPR作成
-          if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
-            # 変更をコミット（もしまだコミットされていない場合）
-            if [[ -n $(git status --porcelain) ]]; then
-              git add .
-              git commit -m "Claude: Implement changes for issue #${{ github.event.issue.number }}"
+            BRANCH=$(git branch --show-current)
+            if [[ "$BRANCH" != "main" ]]; then
+              git push origin "$BRANCH"
+              gh pr create --title "Claude: Issue #${{ github.event.issue.number }}" --body "Fixes #${{ github.event.issue.number }}" --head "$BRANCH" --base main
             fi
-            
-            # ブランチをプッシュ
-            git push origin "$CURRENT_BRANCH"
-            
-            # PR作成
-            gh pr create \
-              --title "Claude: ${{ github.event.issue.title }}" \
-              --body "🤖 Claude Code Actions による自動実装
-
-**関連イシュー:** Closes #${{ github.event.issue.number }}
-
-**実装内容:**
-${{ github.event.comment.body }}
-
-**変更ファイル:**
-$(git diff --name-only HEAD~1)
-
----
-*This PR was automatically created by Claude Code Actions*" \
-              --head "$CURRENT_BRANCH" \
-              --base main \
-              --label "claude-generated" \
-              --assignee "${{ github.event.comment.user.login }}"
-            
-            echo "✅ Pull Request created successfully"
-          else
-            echo "⚠️ Changes were made directly to main branch"
-            echo "Consider creating a feature branch for better workflow"
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Add comment to issue
-        if: always()
-        run: |
-          if [[ "${{ steps.check-changes.outputs.changes_detected }}" == "true" ]]; then
-            COMMENT="✅ **Claude has completed the task!**
-
-Changes have been implemented and a Pull Request has been created.
-
-**Next steps:**
-1. Review the changes in the PR
-2. Test the implementation
-3. Merge when ready
-
-[View the Pull Request](https://github.com/${{ github.repository }}/pulls)"
-          else
-            COMMENT="ℹ️ **Claude processed your request**
-
-However, no file changes were detected. This could mean:
-- The request was informational only
-- There might have been an issue with the implementation
-- The changes were already present
-
-Please check the action logs for more details."
-          fi
-          
-          gh issue comment ${{ github.event.issue.number }} --body "$COMMENT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
