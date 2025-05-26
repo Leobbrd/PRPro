@@ -1,95 +1,28 @@
-name: Claude Code Actions
+
+name: Claude PR Creation
 
 on:
   issue_comment:
     types: [created]
 
 permissions:
-  contents: write
+  id-token: write
+  contents: write         # ← ブランチ作成などに必要
   pull-requests: write
   issues: write
 
 jobs:
-  claude-code:
+  create-pr:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+      - name: Checkout repo
+        uses: actions/checkout@v4   # ← これが必須！
 
       - name: Run Claude
         uses: anthropics/claude-code-action@beta
         with:
-          direct_prompt: |
-            ${{ github.event.comment.body }}
-            
-            Please implement the requested changes by creating or modifying files.
-            Make sure to actually create/edit files, not just provide suggestions.
-            
-            Context: This is issue #${{ github.event.issue.number }} in a GitHub repository.
-          allowed_tools: |
-            [
-              "EditTool",
-              "CreateTool", 
-              "View",
-              "GlobTool",
-              "GrepTool",
-              "BatchTool",
-              "Bash(git status)",
-              "Bash(git diff)",
-              "Bash(git add)",
-              "Bash(ls -la)",
-              "Bash(pwd)",
-              "Bash(find . -name '*.js' -o -name '*.ts' -o -name '*.json')"
-            ]
+          direct_prompt: "${{ github.event.comment.body }}"
+          allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Debug - Check what happened
-        run: |
-          echo "=== Current directory ==="
-          pwd
-          echo "=== Directory contents ==="
-          ls -la
-          echo "=== Git status ==="
-          git status
-          echo "=== Git log (latest) ==="
-          git log --oneline -5 || echo "No commits"
-          echo "=== Current branch ==="
-          git branch --show-current
-
-      - name: Create PR if changes exist
-        run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "Changes detected, creating PR..."
-            git add .
-            git commit -m "Claude: Implement changes for issue #${{ github.event.issue.number }}"
-            
-            BRANCH=$(git branch --show-current)
-            echo "Current branch: $BRANCH"
-            
-            if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
-              git push origin "$BRANCH"
-              gh pr create \
-                --title "Claude: Fix issue #${{ github.event.issue.number }}" \
-                --body "Automated fix for #${{ github.event.issue.number }}" \
-                --head "$BRANCH" \
-                --base main || echo "PR creation failed"
-            else
-              echo "On main branch, skipping PR creation"
-            fi
-          else
-            echo "No changes detected"
-            gh issue comment ${{ github.event.issue.number }} --body "❌ Claude couldn't make any changes. The task might need more specific instructions."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
