@@ -1,51 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService } from '@/lib/auth'
-import { generalApiRateLimit, authRateLimit, getClientIP } from '@/lib/rate-limit'
+import { jwtVerify } from 'jose'
 
 const protectedRoutes = ['/dashboard', '/projects', '/admin']
 const authRoutes = ['/auth/login', '/auth/register']
-const authApiRoutes = ['/api/auth/login', '/api/auth/register']
+const publicApiRoutes = ['/api/auth/', '/api/project/']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const clientIP = getClientIP(request)
-
-  // Apply rate limiting to API routes
-  if (pathname.startsWith('/api/')) {
-    let rateLimiter = generalApiRateLimit
-    
-    // Use stricter rate limiting for auth endpoints
-    if (authApiRoutes.includes(pathname)) {
-      rateLimiter = authRateLimit
-    }
-
-    const limitResult = await rateLimiter.checkLimit(clientIP)
-    
-    if (!limitResult.allowed) {
-      return NextResponse.json(
-        { 
-          error: 'Too many requests',
-          resetTime: limitResult.resetTime.toISOString(),
-        },
-        { 
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': limitResult.total.toString(),
-            'X-RateLimit-Remaining': limitResult.remaining.toString(),
-            'X-RateLimit-Reset': limitResult.resetTime.toISOString(),
-          }
-        }
-      )
-    }
-
-    // Add rate limit headers to response
-    const response = NextResponse.next()
-    response.headers.set('X-RateLimit-Limit', limitResult.total.toString())
-    response.headers.set('X-RateLimit-Remaining', limitResult.remaining.toString())
-    response.headers.set('X-RateLimit-Reset', limitResult.resetTime.toISOString())
-  }
-
-  const user = AuthService.getCurrentUser(request)
+  
+  // Note: Rate limiting moved to individual API routes due to Edge Runtime limitations
+  
+  const user = await getTokenFromRequest(request)
 
   // Handle auth routes
   if (authRoutes.includes(pathname)) {
@@ -65,7 +30,8 @@ export async function middleware(request: NextRequest) {
 
   // Handle API routes
   if (pathname.startsWith('/api/')) {
-    if (pathname.startsWith('/api/auth/')) {
+    // Allow public API routes
+    if (publicApiRoutes.some(route => pathname.startsWith(route))) {
       return NextResponse.next()
     }
     
@@ -76,6 +42,32 @@ export async function middleware(request: NextRequest) {
   }
 
   return NextResponse.next()
+}
+
+// Edge Runtime compatible JWT verification
+async function getTokenFromRequest(request: NextRequest) {
+  try {
+    // Get token from Authorization header
+    const authHeader = request.headers.get('authorization')
+    let token: string | null = null
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7)
+    } else {
+      // Get token from cookies
+      token = request.cookies.get('accessToken')?.value || null
+    }
+    
+    if (!token) return null
+    
+    // Verify token using jose (Edge Runtime compatible)
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
+    const { payload } = await jwtVerify(token, secret)
+    
+    return payload
+  } catch {
+    return null
+  }
 }
 
 export const config = {
