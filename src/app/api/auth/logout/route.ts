@@ -12,9 +12,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    AuthService.clearAuthCookies()
+    const response = NextResponse.json({ message: 'ログアウトしました' })
+    
+    // Clear cookies directly on the response
+    response.cookies.delete('accessToken')
+    response.cookies.delete('refreshToken')
 
-    return NextResponse.json({ message: 'ログアウトしました' })
+    return response
   } catch (error) {
     console.error('Logout error:', error)
     return NextResponse.json(

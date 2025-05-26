@@ -71,10 +71,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Set new cookies
-    AuthService.setAuthCookies(newAccessToken, newRefreshToken)
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       accessToken: newAccessToken,
       user: {
         id: user.id,
@@ -83,6 +80,25 @@ export async function POST(request: NextRequest) {
         role: user.role,
       },
     })
+
+    // Set cookies directly on the response
+    response.cookies.set('accessToken', newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60, // 15 minutes
+      path: '/',
+    })
+
+    response.cookies.set('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/',
+    })
+
+    return response
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
