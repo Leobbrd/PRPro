@@ -28,12 +28,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Handle API routes
-  if (pathname.startsWith('/api/')) {
-    // Allow public API routes
-    if (publicApiRoutes.some(route => pathname.startsWith(route))) {
-      return NextResponse.next()
-    }
+// Handle API routes
+if (pathname.startsWith('/api/')) {
+  // Allow public API routes
+  if (publicApiRoutes.some(route => pathname.startsWith(route))) {
+    return NextResponse.next()
+  }
+  
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return NextResponse.next()
+}
+return NextResponse.next()
     
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
