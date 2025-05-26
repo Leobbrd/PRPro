@@ -1,44 +1,29 @@
 import { createClient } from 'redis'
 
-const globalForRedis = globalThis as unknown as {
-  redis: ReturnType<typeof createClient> | undefined
+const isEdgeRuntime = typeof EdgeRuntime !== 'undefined'
+
+declare global {
+  var __redis: ReturnType<typeof createClient> | undefined
 }
 
-export const redis =
-  globalForRedis.redis ??
-  createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    socket: {
-      connectTimeout: 10000,
-      lazyConnect: true,
-    },
-    retryStrategy: (times) => Math.min(times * 50, 2000)
-  })
+let redis: ReturnType<typeof createClient> | null = null
 
-if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis
-
-redis.on('error', (err) => {
-  console.error('Redis connection error:', err)
-})
-
-redis.on('connect', () => {
-  console.log('Redis connected successfully')
-})
-
-redis.on('reconnecting', () => {
-  console.log('Redis reconnecting...')
-})
-
-// Connect only when needed
-export const connectRedis = async () => {
-  if (!redis.isOpen) {
-    try {
-      await redis.connect()
-      console.log('Redis connection established')
-    } catch (error) {
-      console.error('Failed to connect to Redis:', error)
-      throw error
+if (!isEdgeRuntime && typeof window === 'undefined') {
+  try {
+    if (!global.__redis) {
+      global.__redis = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        socket: {
+          connectTimeout: 10000,
+          reconnectStrategy: (retries: number) => Math.min(retries * 50, 2000),
+        },
+      })
     }
+    redis = global.__redis
+  } catch (error) {
+    console.warn('Redis connection failed:', error)
+    redis = null
   }
-  return redis
 }
+
+export { redis }

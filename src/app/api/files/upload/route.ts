@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const uploadedFile = await prisma.file.create({
       data: {
         projectId: validProjectId,
-        uploadedBy: user.userId,
+        uploadedById: user.userId,
         originalName: file.name,
         filePath: fileKey,
         fileSize: file.size,

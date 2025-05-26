@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = AuthService.getCurrentUser(request)
+    // awaitを追加
+    const user = await AuthService.getCurrentUser(request)
     
     if (!user) {
       return NextResponse.json(
@@ -34,8 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      user: dbUser,
-      accessToken: AuthService.getTokenFromRequest(request),
+      user: dbUser
     })
   } catch (error) {
     console.error('Get current user error:', error)

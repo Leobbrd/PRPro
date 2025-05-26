@@ -17,7 +17,7 @@ export class EmailService {
 
   constructor(config: EmailConfig) {
     this.config = config
-    this.transporter = nodemailer.createTransporter({
+    this.transporter = nodemailer.createTransport({
       host: config.smtpHost,
       port: config.smtpPort,
       secure: config.smtpPort === 465,
@@ -33,7 +33,7 @@ export class EmailService {
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify?token=${token}`
 
     // Store token in Redis with 24-hour expiration
-    await redis.setex(`email_verification:${token}`, 24 * 60 * 60, email)
+    await redis.setEx(`email_verification:${token}`, 24 * 60 * 60, email)
 
     const html = `
       <!DOCTYPE html>
@@ -82,7 +82,7 @@ export class EmailService {
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${token}`
 
     // Store token in Redis with 1-hour expiration
-    await redis.setex(`password_reset:${token}`, 60 * 60, email)
+    await redis.setEx(`password_reset:${token}`, 60 * 60, email)
 
     const html = `
       <!DOCTYPE html>

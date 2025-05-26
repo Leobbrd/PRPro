@@ -119,7 +119,7 @@ export default function ProjectDetailPage() {
   const canEdit = project && (
     user?.role === 'ADMIN' || 
     user?.role === 'SUPER_ADMIN' || 
-    project.admin.id === user?.userId
+    project.admin.id === user?.id
   )
 
   if (isLoading || !isAuthenticated) {

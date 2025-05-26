@@ -71,9 +71,8 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    AuthService.setAuthCookies(accessToken, refreshToken)
-
-    return NextResponse.json({
+    // レスポンスオブジェクトを作成
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -82,6 +81,11 @@ export async function POST(request: NextRequest) {
       },
       accessToken,
     })
+
+    // クッキーを設定
+    AuthService.setAuthCookies(response, { accessToken, refreshToken })
+
+    return response
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
