@@ -1,2 +1,2 @@
-# Heyvite
-結婚式の招待状の宴会版
+# PR Pro
+PR会社向けの調整用Saas
