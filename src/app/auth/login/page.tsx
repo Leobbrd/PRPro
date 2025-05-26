@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { useAuth } from '@/store/auth'
 
 const loginSchema = z.object({
   email: z.string().email('有効なメールアドレスを入力してください'),
@@ -18,9 +19,9 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const { isAuthenticated, isLoading, login, setLoading } = useAuth()
 
   const {
     register,
@@ -30,8 +31,15 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   })
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, router])
+
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true)
+    setLoading(true)
     setError('')
 
     try {
@@ -40,20 +48,32 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'ログインに失敗しました')
+        // Handle rate limiting
+        if (response.status === 429) {
+          const resetTime = new Date(result.resetTime).toLocaleTimeString('ja-JP')
+          setError(`${result.error} リセット時刻: ${resetTime}`)
+        } else {
+          setError(result.error || 'ログインに失敗しました')
+        }
+        return
       }
 
+      // Update auth state
+      login(result.user, result.accessToken)
+      
+      // Redirect to dashboard
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ログインに失敗しました')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
