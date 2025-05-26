@@ -3,7 +3,7 @@ CLAUDE.md - プロジェクトガイドライン
 PR会社用調整Webサービス 要件定義書
 📋 プロジェクト概要
 プロジェクト名
-PR Agency Coordination Platform (PACP)
+PR Pro
 目的
 PR会社とクライアント間の調整業務を効率化し、プロジェクト管理を一元化するWebサービス
 対象ユーザー
