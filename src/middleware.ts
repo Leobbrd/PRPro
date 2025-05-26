@@ -65,7 +65,8 @@ export async function middleware(request: NextRequest) {
 
   // Handle API routes
   if (pathname.startsWith('/api/')) {
-    if (pathname.startsWith('/api/auth/')) {
+    // Allow public access to auth and public project routes
+    if (pathname.startsWith('/api/auth/') || pathname.startsWith('/api/project/')) {
       return NextResponse.next()
     }
     
