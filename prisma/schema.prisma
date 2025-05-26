@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  USER
+  GUEST
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum EventStatus {
+  PLANNING
+  CONFIRMED
+  CANCELLED
+}
+
+enum FileCategory {
+  OFFICIAL_MATERIALS
+  PRESS_RELEASE
+  IMAGES
+  VIDEOS
+  DOCUMENTS
+  PROPOSALS
+}
+
+enum ApprovalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum ScheduleSlotStatus {
+  AVAILABLE
+  FULL
+  BLOCKED
+}
+
+enum NotificationType {
+  DEADLINE_REMINDER
+  APPROVAL_REQUEST
+  STATUS_UPDATE
+  SCHEDULE_CONFIRMATION
+  SYSTEM_ALERT
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         UserRole @default(USER)
+  name         String   @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  adminProjects    Project[]      @relation("ProjectAdmin")
+  uploadedFiles    File[]         @relation("FileUploader")
+  notifications    Notification[]
+  scheduleBookings Booking[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String        @db.VarChar(100)
+  description String?       @db.Text
+  uniqueUrl   String        @unique @map("unique_url") @db.VarChar(50)
+  adminId     String        @map("admin_id") @db.Uuid
+  status      ProjectStatus @default(DRAFT)
+  settings    Json          @default("{}")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  admin         User           @relation("ProjectAdmin", fields: [adminId], references: [id])
+  events        Event[]
+  files         File[]
+  scheduleSlots ScheduleSlot[]
+
+  @@map("projects")
+}
+
+model Event {
+  id           String      @id @default(uuid()) @db.Uuid
+  projectId    String      @map("project_id") @db.Uuid
+  title        String      @db.VarChar(200)
+  description  String?     @db.Text
+  eventDate    DateTime    @map("event_date")
+  venue        String      @db.VarChar(200)
+  capacity     Int
+  requirements String?     @db.Text
+  status       EventStatus @default(PLANNING)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("events")
+}
+
+model File {
+  id             String         @id @default(uuid()) @db.Uuid
+  projectId      String         @map("project_id") @db.Uuid
+  uploadedBy     String         @map("uploaded_by") @db.Uuid
+  originalName   String         @map("original_name") @db.VarChar(255)
+  filePath       String         @map("file_path") @db.VarChar(500)
+  fileSize       Int            @map("file_size")
+  mimeType       String         @map("mime_type") @db.VarChar(100)
+  category       FileCategory
+  approvalStatus ApprovalStatus @default(DRAFT) @map("approval_status")
+  approvalComment String?       @map("approval_comment") @db.Text
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation("FileUploader", fields: [uploadedBy], references: [id])
+
+  @@map("files")
+}
+
+model ScheduleSlot {
+  id          String             @id @default(uuid()) @db.Uuid
+  projectId   String             @map("project_id") @db.Uuid
+  startTime   DateTime           @map("start_time")
+  endTime     DateTime           @map("end_time")
+  capacity    Int
+  bookedCount Int                @default(0) @map("booked_count")
+  status      ScheduleSlotStatus @default(AVAILABLE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("schedule_slots")
+}
+
+model Booking {
+  id             String   @id @default(uuid()) @db.Uuid
+  scheduleSlotId String   @map("schedule_slot_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  scheduleSlot ScheduleSlot @relation(fields: [scheduleSlotId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([scheduleSlotId, userId])
+  @@map("bookings")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(200)
+  message   String           @db.Text
+  read      Boolean          @default(false)
+  data      Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique @db.VarChar(255)
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+}
