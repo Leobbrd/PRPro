@@ -241,3 +241,214 @@ describe('Project settings', () => {
     expect(defaultSettings.deadlineNotifications).toBe(true)
   })
 })
+
+// 個別プロジェクトAPI のテスト
+describe('/api/projects/[id]', () => {
+  const mockUser = {
+    userId: 'test-user-id',
+    email: 'test@example.com',
+    role: 'ADMIN' as const,
+  }
+
+  let testProjectId: string
+
+  beforeEach(async () => {
+    // テスト用ユーザーを作成
+    await prisma.user.create({
+      data: {
+        id: mockUser.userId,
+        email: mockUser.email,
+        passwordHash: 'hashed_password',
+        name: 'Test User',
+        role: 'ADMIN',
+      },
+    })
+
+    // テスト用プロジェクトを作成
+    const project = await prisma.project.create({
+      data: {
+        name: 'テスト編集プロジェクト',
+        description: '編集テスト用',
+        uniqueUrl: 'edit001',
+        adminId: mockUser.userId,
+        status: 'DRAFT',
+        settings: {
+          scheduleAdjustmentEnabled: true,
+          autoApproval: false,
+          deadlineNotifications: true,
+        },
+      },
+    })
+    testProjectId = project.id
+  })
+
+  afterEach(async () => {
+    // テストデータをクリーンアップ
+    await prisma.project.deleteMany({
+      where: { adminId: mockUser.userId },
+    })
+    await prisma.user.delete({
+      where: { id: mockUser.userId },
+    })
+  })
+
+  describe('PUT /api/projects/[id]', () => {
+    it('プロジェクトを更新できること', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue(mockUser)
+
+      const { PUT } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest(`http://localhost:3000/api/projects/${testProjectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: '更新されたプロジェクト名',
+          description: '更新された説明',
+          status: 'ACTIVE',
+          settings: {
+            scheduleAdjustmentEnabled: false,
+            autoApproval: true,
+            deadlineNotifications: false,
+          },
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await PUT(request, { params: { id: testProjectId } })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.project).toBeDefined()
+      expect(data.project.name).toBe('更新されたプロジェクト名')
+      expect(data.project.description).toBe('更新された説明')
+      expect(data.project.status).toBe('ACTIVE')
+      expect(data.project.settings.scheduleAdjustmentEnabled).toBe(false)
+      expect(data.project.settings.autoApproval).toBe(true)
+      expect(data.project.settings.deadlineNotifications).toBe(false)
+
+      mockGetCurrentUser.mockRestore()
+    })
+
+    it('部分的な更新ができること', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue(mockUser)
+
+      const { PUT } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest(`http://localhost:3000/api/projects/${testProjectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: '部分更新されたプロジェクト名',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await PUT(request, { params: { id: testProjectId } })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.project.name).toBe('部分更新されたプロジェクト名')
+      expect(data.project.description).toBe('編集テスト用') // 変更されていない
+      expect(data.project.status).toBe('DRAFT') // 変更されていない
+
+      mockGetCurrentUser.mockRestore()
+    })
+
+    it('権限のないユーザーはプロジェクトを更新できないこと', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue({
+        ...mockUser,
+        userId: 'other-user-id',
+        role: 'USER' as const,
+      })
+
+      const { PUT } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest(`http://localhost:3000/api/projects/${testProjectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: '不正更新',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await PUT(request, { params: { id: testProjectId } })
+
+      expect(response.status).toBe(403)
+
+      mockGetCurrentUser.mockRestore()
+    })
+
+    it('存在しないプロジェクトの更新で404エラーを返すこと', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue(mockUser)
+
+      const { PUT } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest('http://localhost:3000/api/projects/non-existent-id', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: '存在しないプロジェクト',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await PUT(request, { params: { id: 'non-existent-id' } })
+
+      expect(response.status).toBe(404)
+
+      mockGetCurrentUser.mockRestore()
+    })
+  })
+
+  describe('DELETE /api/projects/[id]', () => {
+    it('プロジェクトを論理削除できること', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue(mockUser)
+
+      const { DELETE } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest(`http://localhost:3000/api/projects/${testProjectId}`, {
+        method: 'DELETE',
+      })
+
+      const response = await DELETE(request, { params: { id: testProjectId } })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.project.status).toBe('ARCHIVED')
+      expect(data.message).toBe('プロジェクトを削除しました')
+
+      mockGetCurrentUser.mockRestore()
+    })
+
+    it('権限のないユーザーはプロジェクトを削除できないこと', async () => {
+      const mockGetCurrentUser = jest.spyOn(AuthService, 'getCurrentUser')
+      mockGetCurrentUser.mockReturnValue({
+        ...mockUser,
+        userId: 'other-user-id',
+        role: 'USER' as const,
+      })
+
+      const { DELETE } = await import('@/app/api/projects/[id]/route')
+      
+      const request = new NextRequest(`http://localhost:3000/api/projects/${testProjectId}`, {
+        method: 'DELETE',
+      })
+
+      const response = await DELETE(request, { params: { id: testProjectId } })
+
+      expect(response.status).toBe(403)
+
+      mockGetCurrentUser.mockRestore()
+    })
+  })
+})
