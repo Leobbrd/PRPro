@@ -1,60 +1,141 @@
-name: Claude PR Creation
+name: Claude Code Actions
+
 on:
   issue_comment:
     types: [created]
+
 permissions:
   id-token: write
   contents: write
   pull-requests: write
   issues: write
+
 jobs:
-  create-pr:
+  claude-code:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Set up branch name
-        id: branch-name
+          fetch-depth: 0
+
+      - name: Configure Git
         run: |
-          ISSUE_TITLE="${{ github.event.issue.title }}"
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          
-          CLEAN_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
-          BRANCH_NAME="${CLEAN_TITLE}_${ISSUE_NUMBER}"
-          
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-      
-      - name: Create and checkout branch
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout -b ${{ steps.branch-name.outputs.branch_name }}
-      
-      - name: Run Claude
+          git config --local user.email "claude-bot@anthropic.com"
+          git config --local user.name "Claude Bot"
+
+      - name: Run Claude Code Action
         uses: anthropics/claude-code-action@beta
         with:
           direct_prompt: "${{ github.event.comment.body }}"
-          allowed_tools: '["Bash(git status)", "Bash(git log)", "Bash(git show)", "Bash(git blame)", "Bash(git reflog)", "Bash(git stash list)", "Bash(git ls-files)", "Bash(git branch)", "Bash(git tag)", "Bash(git diff)", "View", "GlobTool", "GrepTool", "BatchTool"]'
+          allowed_tools: |
+            [
+              "Bash(git status)",
+              "Bash(git log)",
+              "Bash(git show)",
+              "Bash(git blame)",
+              "Bash(git reflog)",
+              "Bash(git stash list)",
+              "Bash(git ls-files)",
+              "Bash(git branch)",
+              "Bash(git tag)",
+              "Bash(git diff)",
+              "View",
+              "GlobTool", 
+              "GrepTool",
+              "BatchTool",
+              "EditTool",
+              "CreateTool"
+            ]
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Push branch and create PR
+
+      - name: Check for changes
+        id: check-changes
         run: |
-          # 変更があるかチェック
-          if [[ -n $(git status --porcelain) ]] || [[ $(git rev-list --count HEAD ^origin/main) -gt 0 ]]; then
-            git push origin ${{ steps.branch-name.outputs.branch_name }}
-            
-            # PRを作成
-            gh pr create \
-              --title "Fix: ${{ github.event.issue.title }}" \
-              --body "Fixes #${{ github.event.issue.number }}" \
-              --head ${{ steps.branch-name.outputs.branch_name }} \
-              --base main
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git status --short
           else
-            echo "No changes to commit"
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
           fi
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.changes_detected == 'true'
+        run: |
+          # ブランチ名を自動生成（Claude Code Actionが作成）
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "Current branch: $CURRENT_BRANCH"
+          
+          # mainブランチでない場合のみPR作成
+          if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
+            # 変更をコミット（もしまだコミットされていない場合）
+            if [[ -n $(git status --porcelain) ]]; then
+              git add .
+              git commit -m "Claude: Implement changes for issue #${{ github.event.issue.number }}"
+            fi
+            
+            # ブランチをプッシュ
+            git push origin "$CURRENT_BRANCH"
+            
+            # PR作成
+            gh pr create \
+              --title "Claude: ${{ github.event.issue.title }}" \
+              --body "🤖 Claude Code Actions による自動実装
+
+**関連イシュー:** Closes #${{ github.event.issue.number }}
+
+**実装内容:**
+${{ github.event.comment.body }}
+
+**変更ファイル:**
+$(git diff --name-only HEAD~1)
+
+---
+*This PR was automatically created by Claude Code Actions*" \
+              --head "$CURRENT_BRANCH" \
+              --base main \
+              --label "claude-generated" \
+              --assignee "${{ github.event.comment.user.login }}"
+            
+            echo "✅ Pull Request created successfully"
+          else
+            echo "⚠️ Changes were made directly to main branch"
+            echo "Consider creating a feature branch for better workflow"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add comment to issue
+        if: always()
+        run: |
+          if [[ "${{ steps.check-changes.outputs.changes_detected }}" == "true" ]]; then
+            COMMENT="✅ **Claude has completed the task!**
+
+Changes have been implemented and a Pull Request has been created.
+
+**Next steps:**
+1. Review the changes in the PR
+2. Test the implementation
+3. Merge when ready
+
+[View the Pull Request](https://github.com/${{ github.repository }}/pulls)"
+          else
+            COMMENT="ℹ️ **Claude processed your request**
+
+However, no file changes were detected. This could mean:
+- The request was informational only
+- There might have been an issue with the implementation
+- The changes were already present
+
+Please check the action logs for more details."
+          fi
+          
+          gh issue comment ${{ github.event.issue.number }} --body "$COMMENT"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
