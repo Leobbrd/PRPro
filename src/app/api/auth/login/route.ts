@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/lib/auth'
+import { authRateLimit, getClientIP } from '@/lib/rate-limit'
 
 const loginSchema = z.object({
   email: z.string().email('有効なメールアドレスを入力してください'),
@@ -10,6 +11,27 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const clientIP = getClientIP(request)
+    const limitResult = await authRateLimit.checkLimit(clientIP)
+    
+    if (!limitResult.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'ログイン試行回数が上限に達しました。しばらく待ってから再試行してください。',
+          resetTime: limitResult.resetTime.toISOString(),
+        },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limitResult.total.toString(),
+            'X-RateLimit-Remaining': limitResult.remaining.toString(),
+            'X-RateLimit-Reset': limitResult.resetTime.toISOString(),
+          }
+        }
+      )
+    }
+
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
 
