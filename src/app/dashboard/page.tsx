@@ -94,7 +94,7 @@ export default function DashboardPage() {
   }
 
   const handleProjectClick = (projectId: string) => {
-    router.push(`/dashboard/projects/${project.id}/edit`)
+    router.push(`/dashboard/projects/${projectId}/edit`)
   }
 
   const handleLogout = async () => {
