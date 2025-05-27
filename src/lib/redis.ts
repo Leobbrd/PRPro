@@ -67,6 +67,12 @@ class RedisService {
     if (!client) return
     return client.setEx(key, ttl, value)
   }
+  async incr(key: string): Promise<number> {
+    const client = await this.getClient()
+    if (!client) throw new Error('Redis client not available')
+    return client.incr(key)
+  }
+
 }
 
 export const redisService = new RedisService()
