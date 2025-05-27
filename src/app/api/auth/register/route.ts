@@ -1,53 +1,76 @@
-import { AuthService } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { AuthService } from '@/lib/auth'
+import { authRateLimit, getClientIP } from '@/lib/rate-limit'
 
 const registerSchema = z.object({
-  name: z.string().min(1, '名前を入力してください'),
   email: z.string().email('有効なメールアドレスを入力してください'),
-  password: z.string().min(6, '6文字以上のパスワードを入力してください'),
+  password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
+  name: z.string().min(1, '名前を入力してください'),
 })
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json()
-    const { name, email, password } = registerSchema.parse(body)
+    const clientIP = getClientIP(request)
+    const limitResult = await authRateLimit.checkLimit(clientIP)
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
-
-    if (existingUser) {
+    if (!limitResult.allowed) {
       return NextResponse.json(
-        { error: 'このメールアドレスは既に登録されています' },
-        { status: 400 }
+        {
+          error: '登録試行回数が上限に達しました。しばらく待ってから再試行してください。',
+          resetTime: limitResult.resetTime.toISOString(),
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': limitResult.total.toString(),
+            'X-RateLimit-Remaining': limitResult.remaining.toString(),
+            'X-RateLimit-Reset': limitResult.resetTime.toISOString(),
+          },
+        }
       )
     }
 
-    const hashedPassword = await AuthService.hashPassword(password)
+    const body = await request.json()
+    const { email, password, name } = registerSchema.parse(body)
+
+    const existingUser = await prisma.user.findUnique({ where: { email } })
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'このメールアドレスは既に登録されています' },
+        { status: 409 }
+      )
+    }
+
+    const passwordHash = await AuthService.hashPassword(password)
 
     const user = await prisma.user.create({
       data: {
-        name,
         email,
-        passwordHash: hashedPassword,
+        passwordHash,
+        name,
+        role: 'USER',
       },
     })
 
-    const accessToken = AuthService.generateAccessToken({
+    const payload = {
       userId: user.id,
       email: user.email,
       role: user.role,
+    }
+
+    const accessToken = AuthService.generateAccessToken(payload)
+    const refreshToken = AuthService.generateRefreshToken(payload)
+
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
     })
 
-    const refreshToken = AuthService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    })
-
-    // ✅ Cookie をセットするために NextResponse を変数に格納
     const response = NextResponse.json({
       user: {
         id: user.id,
@@ -58,7 +81,6 @@ export async function POST(req: Request) {
       accessToken,
     })
 
-    // ✅ Cookie セット
     AuthService.setAuthCookies(response, { accessToken, refreshToken })
 
     return response
@@ -70,9 +92,9 @@ export async function POST(req: Request) {
       )
     }
 
-    console.error('Registration error:', error)
+    console.error('Register error:', error)
     return NextResponse.json(
-      { error: 'ユーザー登録に失敗しました' },
+      { error: 'ユーザー登録に失敗しました。' },
       { status: 500 }
     )
   }

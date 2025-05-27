@@ -11,30 +11,32 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Apply rate limiting
+    // レートリミットチェック
     const clientIP = getClientIP(request)
     const limitResult = await authRateLimit.checkLimit(clientIP)
-    
+
     if (!limitResult.allowed) {
       return NextResponse.json(
-        { 
+        {
           error: 'ログイン試行回数が上限に達しました。しばらく待ってから再試行してください。',
           resetTime: limitResult.resetTime.toISOString(),
         },
-        { 
+        {
           status: 429,
           headers: {
             'X-RateLimit-Limit': limitResult.total.toString(),
             'X-RateLimit-Remaining': limitResult.remaining.toString(),
             'X-RateLimit-Reset': limitResult.resetTime.toISOString(),
-          }
+          },
         }
       )
     }
 
+    // リクエストバリデーション
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
 
+    // ユーザー検索
     const user = await prisma.user.findUnique({
       where: { email },
     })
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // パスワード検証
     const isValidPassword = await AuthService.verifyPassword(password, user.passwordHash)
     if (!isValidPassword) {
       return NextResponse.json(
@@ -54,6 +57,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // トークン生成
     const payload = {
       userId: user.id,
       email: user.email,
@@ -63,15 +67,16 @@ export async function POST(request: NextRequest) {
     const accessToken = AuthService.generateAccessToken(payload)
     const refreshToken = AuthService.generateRefreshToken(payload)
 
+    // Refresh TokenをDB保存
     await prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日後
       },
     })
 
-    // レスポンスオブジェクトを作成
+    // レスポンス組立
     const response = NextResponse.json({
       user: {
         id: user.id,
@@ -82,7 +87,7 @@ export async function POST(request: NextRequest) {
       accessToken,
     })
 
-    // クッキーを設定
+    // クッキー設定
     AuthService.setAuthCookies(response, { accessToken, refreshToken })
 
     return response
@@ -96,8 +101,9 @@ export async function POST(request: NextRequest) {
 
     console.error('Login error:', error)
     return NextResponse.json(
-      { error: 'ログインに失敗しました' },
+      { error: 'ログインに失敗しました。もう一度お試しください。' },
       { status: 500 }
     )
   }
 }
+
