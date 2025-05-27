@@ -105,10 +105,11 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
     
-    const where = status ? { status } : {}
+    let where: any  = status ? { status } : {}
     
     if (user.role === 'USER' || user.role === 'GUEST') {
       where = {
+        ...where,
         adminId: user.userId
       }
     }
