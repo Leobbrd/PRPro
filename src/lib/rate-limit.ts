@@ -1,4 +1,4 @@
-import { redis } from './redis'
+import { redisService } from './redis'
 
 export interface RateLimitOptions {
   windowMs: number // Time window in milliseconds

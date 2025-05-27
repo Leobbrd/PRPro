@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer'
 import { nanoid } from 'nanoid'
-import { redis } from './redis'
+import { redisService } from './redis'
 
 export interface EmailConfig {
   smtpHost: string
