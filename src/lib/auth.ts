@@ -44,29 +44,29 @@ export class AuthService {
   }
 
   static async getCurrentUser(request: Request): Promise<TokenPayload | null> {
-    try {
-      // Try to get token from Authorization header
-      const authHeader = request.headers.get('authorization')
-      let token: string | null = null
-      
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.slice(7)
-      } else {
-        // Try to get token from cookies
-        const cookieStore = cookies()
-        token = cookieStore.get('accessToken')?.value || null
-      }
-      
-      if (!token) {
-        return null
-      }
-      
-      return this.verifyToken(token)
-    } catch (error) {
-      console.error('Error getting current user:', error)
-      return null
-    }
-  }
+   try {
+     // Authorization ヘッダーから取得
+     const authHeader = request.headers.get('authorization')
+     let token: string | null = null
+ 
+     if (authHeader?.startsWith('Bearer ')) {
+       token = authHeader.slice(7)
+     } else {
+       // Cookie ヘッダーから accessToken を抽出
+       const cookieHeader = request.headers.get('cookie') || ''
+       const match = cookieHeader.match(/accessToken=([^;]+)/)
+       if (match) token = decodeURIComponent(match[1])
+     }
+ 
+     if (!token) return null
+ 
+     return this.verifyToken(token)
+   } catch (error) {
+     console.error('Error getting current user:', error)
+     return null
+   }
+ }
+ 
 
   static setAuthCookies(response: NextResponse, tokens: AuthTokens): void {
     // Set access token cookie (15 minutes)
