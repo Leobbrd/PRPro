@@ -82,7 +82,7 @@ export class EmailService {
     const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${token}`
 
     // Store token in Redis with 1-hour expiration
-    await redis.setEx(`password_reset:${token}`, 60 * 60, email)
+    await redisService.setEx(`password_reset:${token}`, 60 * 60, email)
 
     const html = `
       <!DOCTYPE html>
@@ -127,17 +127,17 @@ export class EmailService {
   }
 
   async verifyEmailToken(token: string): Promise<string | null> {
-    const email = await redis.get(`email_verification:${token}`)
+    const email = await redisService.get(`email_verification:${token}`)
     if (email) {
-      await redis.del(`email_verification:${token}`)
+      await redisService.del(`email_verification:${token}`)
     }
     return email
   }
 
   async verifyPasswordResetToken(token: string): Promise<string | null> {
-    const email = await redis.get(`password_reset:${token}`)
+    const email = await redisService.get(`password_reset:${token}`)
     if (email) {
-      await redis.del(`password_reset:${token}`)
+      await redisService.del(`password_reset:${token}`)
     }
     return email
   }
