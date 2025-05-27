@@ -1,21 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/lib/auth'
+import prisma from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
 const registerSchema = z.object({
+  name: z.string().min(1, '名前を入力してください'),
   email: z.string().email('有効なメールアドレスを入力してください'),
-  password: z
-    .string()
-    .min(8, 'パスワードは8文字以上で入力してください')
-    .regex(/^(?=.*[a-zA-Z])(?=.*\d)/, 'パスワードは英数字を含む必要があります'),
-  name: z.string().min(1, '名前を入力してください').max(100, '名前は100文字以内で入力してください'),
+  password: z.string().min(6, '6文字以上のパスワードを入力してください'),
 })
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json()
-    const { email, password, name } = registerSchema.parse(body)
+    const body = await req.json()
+    const { name, email, password } = registerSchema.parse(body)
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -23,8 +20,8 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'このメールアドレスは既に使用されています' },
-        { status: 409 }
+        { error: 'このメールアドレスは既に登録されています' },
+        { status: 400 }
       )
     }
 
@@ -32,33 +29,26 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
-        passwordHash: hashedPassword,
         name,
-        role: 'USER', // Default role
+        email,
+        password: hashedPassword,
       },
     })
 
-    const payload = {
+    const accessToken = AuthService.generateAccessToken({
       userId: user.id,
       email: user.email,
       role: user.role,
-    }
-
-    const accessToken = AuthService.generateAccessToken(payload)
-    const refreshToken = AuthService.generateRefreshToken(payload)
-
-    await prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
     })
 
-    AuthService.setAuthCookies(accessToken, refreshToken)
+    const refreshToken = AuthService.generateRefreshToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    })
 
-    return NextResponse.json({
+    // ✅ Cookie をセットするために NextResponse を変数に格納
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -67,6 +57,11 @@ export async function POST(request: NextRequest) {
       },
       accessToken,
     })
+
+    // ✅ Cookie セット
+    AuthService.setAuthCookies(response, { accessToken, refreshToken })
+
+    return response
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -82,3 +77,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
