@@ -72,6 +72,12 @@ class RedisService {
     if (!client) throw new Error('Redis client not available')
     return client.incr(key)
   }
+  async expire(key: string, seconds: number): Promise<void> {
+    const client = await this.getClient()
+    if (!client) throw new Error('Redis client not available')
+    await client.expire(key, seconds)
+  }
+
 
 }
 
