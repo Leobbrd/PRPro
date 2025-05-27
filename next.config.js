@@ -16,9 +16,23 @@ const nextConfig = {
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: process.env.NODE_ENV === 'production' ? process.env.NEXTAUTH_URL || '' : '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' }
+          {
+            key: 'Access-Control-Allow-Origin',
+            // 本番URLを明示する（ワイルドカード不可）
+            value: 'https://pr-dbajofgl2-leobbrd-gmailcoms-projects.vercel.app'
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true'
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS'
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization'
+          }
         ]
       }
     ]
@@ -26,3 +40,4 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
+

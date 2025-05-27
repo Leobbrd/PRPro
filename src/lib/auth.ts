@@ -72,8 +72,8 @@ export class AuthService {
     // Set access token cookie (15 minutes)
     response.cookies.set('accessToken', tokens.accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 15 * 60, // 15 minutes in seconds
       path: '/'
     })
@@ -81,8 +81,8 @@ export class AuthService {
     // Set refresh token cookie (7 days)
     response.cookies.set('refreshToken', tokens.refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
       path: '/'
     })
