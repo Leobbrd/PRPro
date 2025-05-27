@@ -108,9 +108,10 @@ export async function GET(request: NextRequest) {
     const where = status ? { status } : {}
     
     if (user.role === 'USER' || user.role === 'GUEST') {
-      where.adminId = user.userId
+      where = {
+        adminId: user.userId
+      }
     }
-
     const [projects, total] = await Promise.all([
       prisma.project.findMany({
         where,
