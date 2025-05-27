@@ -11,7 +11,7 @@ const uploadSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const user = AuthService.getCurrentUser(request)
+    const user = await AuthService.getCurrentUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

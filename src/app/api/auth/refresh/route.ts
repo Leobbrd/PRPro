@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/lib/auth'
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'リフレッシュトークンが必要です'),
-})
-
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { refreshToken } = refreshSchema.parse(body)
+    // Get refresh token from cookie instead of body
+    const refreshToken = request.cookies.get('refreshToken')?.value
+
+    if (!refreshToken) {
+      return NextResponse.json(
+        { error: 'リフレッシュトークンが必要です' },
+        { status: 401 }
+      )
+    }
 
     // Verify refresh token format
     const payload = AuthService.verifyToken(refreshToken)
@@ -71,10 +73,8 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Set new cookies
-    AuthService.setAuthCookies(newAccessToken, newRefreshToken)
-
-    return NextResponse.json({
+    // Create response with new tokens
+    const response = NextResponse.json({
       accessToken: newAccessToken,
       user: {
         id: user.id,
@@ -83,14 +83,15 @@ export async function POST(request: NextRequest) {
         role: user.role,
       },
     })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message },
-        { status: 400 }
-      )
-    }
 
+    // Set new cookies
+    AuthService.setAuthCookies(response, { 
+      accessToken: newAccessToken, 
+      refreshToken: newRefreshToken 
+    })
+
+    return response
+  } catch (error) {
     console.error('Token refresh error:', error)
     return NextResponse.json(
       { error: 'トークンの更新に失敗しました' },

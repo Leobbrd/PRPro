@@ -19,7 +19,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = AuthService.getCurrentUser(request)
+    const user = await AuthService.getCurrentUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -75,7 +75,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = AuthService.getCurrentUser(request)
+    const user = await AuthService.getCurrentUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -139,7 +139,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = AuthService.getCurrentUser(request)
+    const user = await AuthService.getCurrentUser(request)
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

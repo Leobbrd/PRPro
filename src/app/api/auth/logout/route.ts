@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { AuthService } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
@@ -12,9 +11,14 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    AuthService.clearAuthCookies()
+    // Create response
+    const response = NextResponse.json({ message: 'ログアウトしました' })
 
-    return NextResponse.json({ message: 'ログアウトしました' })
+    // Clear auth cookies
+    response.cookies.delete('accessToken')
+    response.cookies.delete('refreshToken')
+
+    return response
   } catch (error) {
     console.error('Logout error:', error)
     return NextResponse.json(
