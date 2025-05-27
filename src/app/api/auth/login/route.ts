@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/lib/auth'
 import { authRateLimit, getClientIP } from '@/lib/rate-limit'
 
+export const runtime = 'nodejs' 
+
 const loginSchema = z.object({
   email: z.string().email('有効なメールアドレスを入力してください'),
   password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
@@ -78,19 +80,27 @@ export async function POST(request: NextRequest) {
 
     // レスポンス組立
     const response = NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-      accessToken,
-    })
+      JSON.stringify({
+         user: {
+           id: user.id,
+           email: user.email,
+           name: user.name,
+           role: user.role,
+         },
+         accessToken,
+       }),
+       {
+         status: 200,
+         headers: {
+           'Content-Type': 'application/json',
+         },
+       }
+     )
 
-    // クッキー設定
-    AuthService.setAuthCookies(response, { accessToken, refreshToken })
+     AuthService.setAuthCookies(response, { accessToken, refreshToken })
 
-    return response
+     return response
+
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
