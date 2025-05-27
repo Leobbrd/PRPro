@@ -26,7 +26,7 @@ export class RateLimiter {
 
     try {
       // Get current count for this window
-      const current = await redis.get(windowKey)
+      const current = await redisService.get(windowKey)
       const count = current ? parseInt(current) : 0
 
       if (count >= this.options.maxRequests) {
@@ -39,11 +39,11 @@ export class RateLimiter {
       }
 
       // Increment counter
-      const newCount = await redis.incr(windowKey)
+      const newCount = await redisService.incr(windowKey)
       
       // Set expiration for the window
       if (newCount === 1) {
-        await redis.expire(windowKey, Math.ceil(this.options.windowMs / 1000))
+        await redisService.expire(windowKey, Math.ceil(this.options.windowMs / 1000))
       }
 
       return {

@@ -33,7 +33,7 @@ export class EmailService {
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify?token=${token}`
 
     // Store token in Redis with 24-hour expiration
-    await redis.setEx(`email_verification:${token}`, 24 * 60 * 60, email)
+    await redisService.setEx(`email_verification:${token}`, 24 * 60 * 60, email)
 
     const html = `
       <!DOCTYPE html>
