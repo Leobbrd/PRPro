@@ -145,7 +145,7 @@ export default function DashboardPage() {
               <Card
                 key={project.id}
                 className="cursor-pointer transition-shadow hover:shadow-lg"
-                onClick={() => handleProjectClick(project)}
+                onClick={() => handleProjectClick(project.id)}
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between">

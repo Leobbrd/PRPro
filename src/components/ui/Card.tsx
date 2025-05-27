@@ -1,16 +1,16 @@
-import { ReactNode } from 'react'
+import { ReactNode, HTMLAttributes } from 'react'
 import { clsx } from 'clsx'
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
   className?: string
   title?: string
   description?: string
 }
 
-export function Card({ children, className, title, description }: CardProps) {
+export function Card({ children, className, title, description, ...props }: CardProps) {
   return (
-    <div className={clsx('card', className)}>
+    <div className={clsx('card', className)} {...props}>
       {(title || description) && (
         <div className="mb-4">
           {title && (
@@ -25,3 +25,4 @@ export function Card({ children, className, title, description }: CardProps) {
     </div>
   )
 }
+
