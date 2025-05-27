@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     })
 
     // レスポンス組立
-    const response = NextResponse.json({
+    const response = NextResponse.json(
       JSON.stringify({
          user: {
            id: user.id,
