@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -18,7 +19,7 @@
     "db:studio": "prisma studio",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "build": "prisma generate && next build"
+    "vercel-build": "prisma generate && prisma db push && next build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",

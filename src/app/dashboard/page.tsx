@@ -4,36 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { useAuthStore } from '@/store/auth'
-
-interface Project {
-  id: string
-  name: string
-  description?: string
-  status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'
-  uniqueUrl: string
-  createdAt: string
-  updatedAt: string
-  admin: {
-    id: string
-    name: string
-    email: string
-  }
-  _count: {
-    files: number
-    events: number
-  }
-}
-
-interface ProjectsResponse {
-  projects: Project[]
-  pagination: {
-    page: number
-    limit: number
-    total: number
-    pages: number
-  }
-}
+import { useAuth, useIsAdmin } from '@/store/auth'
+import { Project, PaginatedResponse, APIResponse } from '@/types'
 
 const statusLabels = {
   DRAFT: '下書き',
@@ -51,7 +23,8 @@ const statusColors = {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isAuthenticated, isLoading, logout } = useAuthStore()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
+  const isAdmin = useIsAdmin()
   const [projects, setProjects] = useState<Project[]>([])
   const [pagination, setPagination] = useState({
     page: 1,
@@ -76,12 +49,26 @@ export default function DashboardPage() {
   const fetchProjects = async (page = 1) => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/projects?page=${page}&limit=20`)
-      if (!response.ok) throw new Error('プロジェクトの取得に失敗しました')
+      setError(null)
+      
+      const response = await fetch(`/api/projects?page=${page}&limit=20`, {
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        throw new Error('プロジェクトの取得に失敗しました')
+      }
 
-      const data: ProjectsResponse = await response.json()
-      setProjects(data.projects)
-      setPagination(data.pagination)
+      const result: APIResponse<PaginatedResponse<Project>> = await response.json()
+      
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      if (result.data) {
+        setProjects(result.data.data || [])
+        setPagination(result.data.pagination)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
     } finally {
@@ -120,7 +107,7 @@ export default function DashboardPage() {
             <p className="mt-2 text-gray-600">{user?.name}さん、お疲れさまです</p>
           </div>
           <div className="flex space-x-4">
-            {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+            {isAdmin && (
               <Button onClick={handleCreateProject}>新規プロジェクト作成</Button>
             )}
             <Button variant="secondary" onClick={handleLogout}>ログアウト</Button>
@@ -190,7 +177,7 @@ export default function DashboardPage() {
               </svg>
               <h3 className="mt-4 text-lg font-medium text-gray-900">プロジェクトがありません</h3>
               <p className="mt-2 text-gray-600">新しいプロジェクトを作成して始めましょう</p>
-              {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+              {isAdmin && (
                 <Button className="mt-4" onClick={handleCreateProject}>
                   最初のプロジェクトを作成
                 </Button>

@@ -3,17 +3,19 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/lib/auth'
 import { authRateLimit, getClientIP } from '@/lib/rate-limit'
+import { withAPI, validateBody, UnauthorizedError } from '@/lib/api-utils'
+import { LoginCredentials, User } from '@/types'
 
-export const runtime = 'nodejs' 
+export const runtime = 'nodejs'
 
 const loginSchema = z.object({
   email: z.string().email('有効なメールアドレスを入力してください'),
   password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
 })
 
-export async function POST(request: NextRequest) {
-  try {
-    // レートリミットチェック
+export const POST = withAPI<{ user: User; accessToken: string }>(
+  async (request: NextRequest) => {
+    // Rate limit check
     const clientIP = getClientIP(request)
     const limitResult = await authRateLimit.checkLimit(clientIP)
 
@@ -34,86 +36,68 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // リクエストバリデーション
+    // Validate request body
     const body = await request.json()
-    const { email, password } = loginSchema.parse(body)
+    const credentials = validateBody(loginSchema, body)
 
-    // ユーザー検索
+    // Find user
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: credentials.email },
     })
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'メールアドレスまたはパスワードが正しくありません' },
-        { status: 401 }
-      )
+      throw new UnauthorizedError('メールアドレスまたはパスワードが正しくありません')
     }
 
-    // パスワード検証
-    const isValidPassword = await AuthService.verifyPassword(password, user.passwordHash)
+    // Verify password
+    const isValidPassword = await AuthService.verifyPassword(
+      credentials.password,
+      user.passwordHash
+    )
+
     if (!isValidPassword) {
-      return NextResponse.json(
-        { error: 'メールアドレスまたはパスワードが正しくありません' },
-        { status: 401 }
-      )
+      throw new UnauthorizedError('メールアドレスまたはパスワードが正しくありません')
     }
 
-    // トークン生成
-    const payload = {
+    // Generate tokens
+    const tokenPayload = {
       userId: user.id,
       email: user.email,
       role: user.role,
     }
 
-    const accessToken = AuthService.generateAccessToken(payload)
-    const refreshToken = AuthService.generateRefreshToken(payload)
+    const tokens = AuthService.generateTokenPair(tokenPayload)
 
-    // Refresh TokenをDB保存
+    // Save refresh token to database
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: tokens.refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日後
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       },
     })
 
-    // レスポンス組立
-    const response = new NextResponse(
-      JSON.stringify({
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        },
-        accessToken,
-       }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    AuthService.setAuthCookies(response, { accessToken, refreshToken })
-
-    return response
-
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message },
-        { status: 400 }
-      )
+    // Prepare response data
+    const userData: User = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     }
 
-    console.error('Login error:', error)
-    return NextResponse.json(
-      { error: 'ログインに失敗しました。もう一度お試しください。' },
-      { status: 500 }
-    )
+    const response = NextResponse.json({
+      data: {
+        user: userData,
+        accessToken: tokens.accessToken,
+      },
+    })
+
+    // Set auth cookies
+    AuthService.setAuthCookies(response, tokens)
+
+    return response
   }
-}
+)
 
