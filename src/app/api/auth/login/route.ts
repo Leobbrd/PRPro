@@ -79,27 +79,27 @@ export async function POST(request: NextRequest) {
     })
 
     // レスポンス組立
-    const response = NextResponse.json(
+    const response = new NextResponse(
       JSON.stringify({
-         user: {
-           id: user.id,
-           email: user.email,
-           name: user.name,
-           role: user.role,
-         },
-         accessToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+        accessToken,
        }),
-       {
-         status: 200,
-         headers: {
-           'Content-Type': 'application/json',
-         },
-       }
-     )
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
-     AuthService.setAuthCookies(response, { accessToken, refreshToken })
+    AuthService.setAuthCookies(response, { accessToken, refreshToken })
 
-     return response
+    return response
 
   } catch (error) {
     if (error instanceof z.ZodError) {
