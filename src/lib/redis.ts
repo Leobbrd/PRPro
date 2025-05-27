@@ -61,6 +61,14 @@ class RedisService {
     if (!client) return
     await client.del(key)
   }
+
+  async setEx(key: string, ttl: number, value: string) {
+    const client = await this.getClient()
+    if (!client) return
+    return client.setEx(key, ttl, value)
+  }
+}
+
 }
 
 export const redisService = new RedisService()
